@@ -48,7 +48,7 @@ class PaymentError(CarRentalError):
 
 class InsufficientBalanceError(PaymentError):
     def __init__(self, current: float, required: float):
-        super().__init__(f"Insufficient balance: Current ${current:.2f}, Required ${required:.2f}")
+        super().__init__(f"Insufficient balance: Current Pkr{current:.2f}, Required PKr{required:.2f}")
 
 
 class InventoryError(CarRentalError):
@@ -153,9 +153,26 @@ class Customer(AbstractUser):
 
 @dataclass
 class Admin(AbstractUser):
+    
+    @dataclass
+    class Admin(AbstractUser):
+        def __init__(self, **kwargs):
+            if not kwargs:
+                super().__init__(
+                    username="admin",
+                    password="admin123",
+                    first_name="System",
+                    last_name="Admin",
+                    email="admin@carental.com",
+                    phone="1234567890",
+                    address="System Address"
+                )
+            else:
+               super().__init__(**kwargs)
     @property
     def balance(self) -> float:
-        return 0.0
+        
+        return 1000000
 
     def deduct_balance(self, amount: float):
         raise PermissionError("Admin accounts don't have balances")
@@ -481,3 +498,4 @@ class CarRentalSystem:
 
     def shutdown(self):
         self.db.save_all(self.users, self.vehicles, self.rentals)
+

@@ -317,7 +317,7 @@ class CarRentalApp(QMainWindow):
         
         self.vehicle_fields['year'].setRange(2000, 2025)
         self.vehicle_fields['daily_rate'].setRange(1, 1000)
-        self.vehicle_fields['daily_rate'].setPrefix("$ ")
+        self.vehicle_fields['daily_rate'].setPrefix("Pkr ")
         self.vehicle_fields['seating'].setRange(2, 8)
         self.vehicle_fields['transmission'].addItems(['Automatic', 'Manual'])
         self.vehicle_fields['fuel_type'].addItems(['Gasoline', 'Diesel', 'Electric', 'Hybrid'])

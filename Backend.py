@@ -8,6 +8,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 
+
+
 # ---------------------------
 # Exceptions
 # ---------------------------
@@ -152,28 +154,19 @@ class Customer(AbstractUser):
 
 
 @dataclass
+
 class Admin(AbstractUser):
-    
-    @dataclass
-    class Admin(AbstractUser):
-        def __init__(self, **kwargs):
-            if not kwargs:
-                super().__init__(
-                    username="admin",
-                    password="admin123",
-                    first_name="System",
-                    last_name="Admin",
-                    email="admin@carental.com",
-                    phone="1234567890",
-                    address="System Address"
-                )
-            else:
-               super().__init__(**kwargs)
+    username: str = "admin"
+    password: str = "admin"
+    first_name: str = "System"
+    last_name: str = "Admin"
+    email: str = "admin@carental.com"
+    phone: str = "1234567890"
+    address: str = "System Address"
     @property
     def balance(self) -> float:
-        
         return 1000000
-
+        
     def deduct_balance(self, amount: float):
         raise PermissionError("Admin accounts don't have balances")
 

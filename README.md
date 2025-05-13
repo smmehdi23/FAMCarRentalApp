@@ -1,2 +1,3 @@
 # FAMCarRentalApp
 ...
+admin login: {admin,admin123}

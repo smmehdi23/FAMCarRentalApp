@@ -1,0 +1,94 @@
+[
+  {
+    "type": "Admin",
+    "username": "admin",
+    "password": "admin123",
+    "first_name": "Admin",
+    "last_name": "User",
+    "email": "admin@famcar.com",
+    "phone": "1234567890",
+    "address": "Admin Office"
+  },
+  {
+    "type": "Customer",
+    "username": "bawg",
+    "password": "123",
+    "first_name": "setr",
+    "last_name": "aerhb",
+    "email": "aebgr",
+    "phone": "aerg",
+    "address": "aegr",
+    "balance": 9000.0,
+    "current_rental": null,
+    "rental_history": []
+  },
+  {
+    "type": "Customer",
+    "username": "zawg",
+    "password": "123",
+    "first_name": "a",
+    "last_name": "s",
+    "email": "d",
+    "phone": "e",
+    "address": "q",
+    "balance": 0.0,
+    "current_rental": null,
+    "rental_history": []
+  },
+  {
+    "type": "Admin",
+    "username": "abc",
+    "password": "123",
+    "first_name": "a",
+    "last_name": "sd",
+    "email": "awf",
+    "phone": "WEF",
+    "address": "wef"
+  },
+  {
+    "type": "Customer",
+    "username": "abcd",
+    "password": "1234",
+    "first_name": "a",
+    "last_name": "a",
+    "email": "a",
+    "phone": "a",
+    "address": "a",
+    "balance": 0.0,
+    "current_rental": null,
+    "rental_history": []
+  },
+  {
+    "type": "Customer",
+    "username": "abcde",
+    "password": "123",
+    "first_name": "a",
+    "last_name": "a",
+    "email": "a",
+    "phone": "a",
+    "address": "a",
+    "balance": 0.0,
+    "current_rental": null,
+    "rental_history": []
+  },
+  {
+    "type": "Admin",
+    "username": "anas",
+    "password": "123",
+    "first_name": "a",
+    "last_name": "a",
+    "email": "a",
+    "phone": "a",
+    "address": "a"
+  },
+  {
+    "type": "Admin",
+    "username": "Faizan",
+    "password": "1234",
+    "first_name": "Faizan",
+    "last_name": "Syed",
+    "email": "faizan@gmail.com",
+    "phone": "03349232153",
+    "address": "B-34, block-12, Gulistan-E-jauhar"
+  }
+]

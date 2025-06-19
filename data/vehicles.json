@@ -1,0 +1,44 @@
+[
+  {
+    "type": "Car",
+    "License_Plate": "ABC-123",
+    "make": "toyota",
+    "model": "corolla",
+    "year": 2000,
+    "daily_rate": 1000.0,
+    "seating": 2,
+    "transmission": "auto",
+    "fuel_type": "petrol",
+    "is_available": false,
+    "trunk_space": 12.5,
+    "mileage": 0.0
+  },
+  {
+    "type": "Car",
+    "License_Plate": "ACF-356",
+    "make": "Suzuki",
+    "model": "Cultus",
+    "year": 2020,
+    "daily_rate": 3500.0,
+    "seating": 4,
+    "transmission": "Manual",
+    "fuel_type": "Petrol",
+    "is_available": true,
+    "trunk_space": 12.5,
+    "mileage": 0.0
+  },
+  {
+    "type": "Car",
+    "License_Plate": "FAM-637",
+    "make": "Suzuki",
+    "model": "Mehran",
+    "year": 2000,
+    "daily_rate": 1000.0,
+    "seating": 4,
+    "transmission": "Manual",
+    "fuel_type": "CNG",
+    "is_available": true,
+    "trunk_space": 12.5,
+    "mileage": 0.0
+  }
+]

@@ -2,10 +2,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt
 from PySide6.QtGui import *
 from Backend import * 
-"""from backend base classes imported CarRentalSystem, Customer, Admin, InvalidCredentialsError"""
+
+PROJECT_ROOT = Path(__file__).parent 
 
 class StyleSheet:
     MAIN_STYLE = """
@@ -116,12 +117,39 @@ class RegisterDialog(QDialog):
                 QMessageBox.warning(self, "Error", "All fields are required!")
                 return
                 
+            #Admin check
+            if self.show_admin_verification():
+                secret = self.get_admin_secret()
+                if not secret:
+                    return  # Abort registration if secret is not provided
+                user_data['secret_code'] = secret
+            
             self.system.register_user(user_data)
             QMessageBox.information(self, "Success", "Registration successful! You can now login.")
             self.accept()
+        
+        except InvalidSecretCodeError:
+            QMessageBox.warning(self, "Error", "Please enter the correct secret code!")
             
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))
+    
+    def show_admin_verification(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Admin Verification")
+        msg.setText("Are you registering as an administrator?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        return msg.exec() == QMessageBox.Yes
+    
+    def get_admin_secret(self):
+        secret, ok = QInputDialog.getText(
+            self,
+            "Admin Verification",
+            "Enter the admin secret code:",
+            QLineEdit.Password 
+        )
+        return secret if ok else ""
+    
 class LoginWindow(QWidget):
     def __init__(self, system, stacked_widget):
         super().__init__()
@@ -143,9 +171,9 @@ class LoginWindow(QWidget):
         welcome_label.setAlignment(Qt.AlignCenter)
         
         car_image = QLabel()
-        car_image_path = "C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/main_car.png"
+        car_image_path = PROJECT_ROOT / "assets" / "main_car.png"
         if Path(car_image_path).exists():
-            pixmap = QPixmap(car_image_path)
+            pixmap = QPixmap(str(car_image_path))
             car_image.setPixmap(pixmap.scaled(600, 500, Qt.KeepAspectRatio))
         
         left_layout.addWidget(welcome_label)
@@ -271,15 +299,15 @@ class CarCard(QFrame):
         main_layout.setContentsMargins(15, 15, 15, 15)
 
         # Car title
-        title = QLabel(self.car.make + " " + self.car.model)
+        title = QLabel(f"{self.car.make} {self.car.model}")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
 
         # Car image
         image_label = QLabel()
-        image_path = f"C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/cars/{self.car.make.lower()}_{self.car.model.lower()}.png"
-        if Path(image_path).exists():
-            pixmap = QPixmap(image_path)
+        image_path = PROJECT_ROOT / "assets" / "cars" / f"{self.car.make.lower()}_{self.car.model.lower()}.png"
+        if image_path.exists():
+            pixmap = QPixmap(str(image_path))
             scaled_pixmap = pixmap.scaled(300, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             image_label.setPixmap(scaled_pixmap)
         image_label.setAlignment(Qt.AlignCenter)
@@ -290,23 +318,28 @@ class CarCard(QFrame):
         price.setAlignment(Qt.AlignCenter)
 
         # Car details
-        details = QLabel(f"Year: {self.car.year}\nTransmission: {self.car.transmission}\nFuel Type: {self.car.fuel_type}")
+        details = QLabel(
+            f"Year: {self.car.year}\n"
+            f"Transmission: {self.car.transmission}\n"
+            f"Fuel Type: {self.car.fuel_type}"
+        )
         details.setAlignment(Qt.AlignCenter)
 
-        # Rent button
-        rent_button = QPushButton("RENT ME!")
-        rent_button.setCursor(Qt.PointingHandCursor)
-        rent_button.clicked.connect(self.handle_rent)
-
-        # Add widgets to layout
+        # Add common elements
         main_layout.addWidget(title)
         main_layout.addWidget(image_label)
         main_layout.addWidget(price)
         main_layout.addWidget(details)
-        main_layout.addWidget(rent_button)
+
+        # Add rent button ONLY for customers
+        if isinstance(self.user, Customer) and not isinstance(self.user, Admin):  # Make sure this is imported from Backend
+            rent_button = QPushButton("RENT ME!")
+            rent_button.setCursor(Qt.PointingHandCursor)
+            rent_button.clicked.connect(self.handle_rent)
+            main_layout.addWidget(rent_button)
+
         main_layout.setAlignment(Qt.AlignCenter)
 
-    
 
     def handle_rent(self):
         if not isinstance(self.user, Customer):
@@ -347,7 +380,7 @@ class CarCard(QFrame):
                 end = datetime.combine(end_date.selectedDate().toPython(), datetime.min.time())
                 
                 try:
-                    rental = self.system.rent_vehicle(self.user.username, self.car.vin, start, end)
+                    rental = self.system.rent_vehicle(self.user.username, self.car.License_Plate, start, end)
                     QMessageBox.information(self, "Success", 
                         f"Car rented successfully!\nTotal Cost: PKR {rental.total_cost}/-")
                     dialog.accept()
@@ -361,7 +394,7 @@ class CarCard(QFrame):
 
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))
-
+            
 class DashboardWindow(QWidget):
     def __init__(self, system, user, stacked_widget):
         super().__init__()
@@ -405,6 +438,7 @@ class DashboardWindow(QWidget):
             buttons = [
                 ("AVAILABLE CARS", self.show_available_cars),
                 ("CAR MANAGEMENT", self.show_car_management),
+                ("ACTIVE RENTALS", self.show_active_rentals),
                 ("ADD NEW CARS", self.show_add_car)
             ]
         else:
@@ -493,7 +527,6 @@ class DashboardWindow(QWidget):
         self.show_available_cars()
 
     def clear_content(self):
-        """Clear all widgets from the content area except the header"""
         # Keep track of the header (first widget)
         header = None
         if self.content_layout.count() > 0:
@@ -508,33 +541,6 @@ class DashboardWindow(QWidget):
         # Add back the header if it existed
         if header:
             self.content_layout.addWidget(header)
-
-    def show_available_cars(self):
-        self.clear_content()
-        cars = self.system.get_available_vehicles()
-        
-        if not cars:
-            no_cars_label = QLabel("No cars available at the moment.")
-            no_cars_label.setAlignment(Qt.AlignCenter)
-            self.content_layout.addWidget(no_cars_label)
-            return
-            
-        cars_grid = QWidget()
-        grid_layout = QGridLayout()
-        row = 0
-        col = 0
-        max_cols = 2  # Show 2 cars per row
-        
-        for car in cars:
-            car_card = CarCard(car, self.user, self.system)
-            grid_layout.addWidget(car_card, row, col)
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
-        
-        cars_grid.setLayout(grid_layout)
-        self.content_layout.addWidget(cars_grid)
 
     def show_my_rentals(self):
         self.clear_content()
@@ -679,6 +685,91 @@ class DashboardWindow(QWidget):
                 no_history_label.setAlignment(Qt.AlignCenter)
                 self.content_layout.addWidget(no_history_label)
     
+    def show_active_rentals(self):
+        #Clear existing content
+        self.clear_content()
+        # Create the active rentals widget
+        active_rentals_widget = QWidget()
+        layout = QVBoxLayout()
+        
+        # Header
+        header = QLabel("Active Rentals")
+        header.setStyleSheet("""
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a1a2e;
+            margin: 20px;
+        """)
+        layout.addWidget(header)
+        
+        # Create table
+        table = QTableWidget()
+        table.setStyleSheet("""
+            QTableWidget {
+                border: none;
+                background-color: white;
+                padding: 10px;
+            }
+            QHeaderView::section {
+                background-color: #1a1a2e;
+                color: white;
+                padding: 10px;
+                border: none;
+                font-size: 14px;
+            }
+            QTableWidget::item {
+                color: #1a1a2e;
+                font-size: 14px;
+                padding: 8px;
+            }
+        """)
+        
+        # Set up table
+        active_rentals = self.system.get_active_rentals()
+        table.setColumnCount(8)
+        table.setRowCount(len(active_rentals))
+        
+        # Set headers
+        headers = ["Rental ID", "Customer", "Vehicle", "License_Plate", "Start Date", "End Date", "Days", "Total Cost"]
+        table.setHorizontalHeaderLabels(headers)
+        
+        # Populate table
+        for row, rental in enumerate(active_rentals):
+            #Generate rental ID
+            rental_id = f"R{rental.id.split('-')[0].upper()}"
+            
+            table.setItem(row, 0, QTableWidgetItem(rental_id))
+            table.setItem(row, 1, QTableWidgetItem(f"{rental.user.first_name} {rental.user.last_name}"))
+            table.setItem(row, 2, QTableWidgetItem(f"{rental.vehicle.make} {rental.vehicle.model}"))
+            table.setItem(row, 3, QTableWidgetItem(f"{rental.vehicle.License_Plate}"))
+            table.setItem(row, 4, QTableWidgetItem(rental.start_date.strftime("%Y-%m-%d")))
+            table.setItem(row, 5, QTableWidgetItem(rental.end_date.strftime("%Y-%m-%d")))
+            table.setItem(row, 6, QTableWidgetItem(str(rental.duration_days)))
+            table.setItem(row, 7, QTableWidgetItem(f"PKR {float(rental.total_cost):,.2f}"))
+        
+        table.resizeColumnsToContents()
+        
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)  # Auto-stretch columns
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        table.resizeRowsToContents()  # Auto-adjust row heights
+        
+        # Set minimum column widths
+        table.setColumnWidth(0, 120)  # Rental ID
+        table.setColumnWidth(1, 120)  # Customer
+        table.setColumnWidth(2, 120)  # Vehicle
+        table.setColumnWidth(3, 120)  # License_Plate
+        table.setColumnWidth(4, 120)  # Start Date
+        table.setColumnWidth(5, 120)  # End Date
+        table.setColumnWidth(6, 80)   # Days
+        table.setColumnWidth(7, 120)  # Total Cost
+        
+        layout.addWidget(table)
+        active_rentals_widget.setLayout(layout)
+        self.content_layout.addWidget(active_rentals_widget)
+        
+    
     def show_funds(self):
         self.clear_content()
         
@@ -746,7 +837,6 @@ class DashboardWindow(QWidget):
             self.content_layout.addWidget(QLabel("Fund management not available for admin users."))
 
     def handle_add_funds_direct(self, amount):
-        """Handle direct amount top-up"""
         try:
             new_balance = self.system.add_funds(self.user.username, amount)
             QMessageBox.information(self, "Success", 
@@ -756,7 +846,6 @@ class DashboardWindow(QWidget):
             QMessageBox.warning(self, "Error", str(e))
 
     def handle_add_funds_custom(self):
-        """Handle custom amount top-up"""
         amount, ok = QInputDialog.getDouble(
             self, 
             "Add Funds", 
@@ -864,9 +953,9 @@ class DashboardWindow(QWidget):
             
             # Car Image
             image_label = QLabel()
-            image_path = f"C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/cars/{vehicle.make.lower()}_{vehicle.model.lower()}.png"
+            image_path = PROJECT_ROOT / "assets" / "cars" / f"{vehicle.make.lower()}_{vehicle.model.lower()}.png"
             if Path(image_path).exists():
-                pixmap = QPixmap(image_path)
+                pixmap = QPixmap(str(image_path))
                 scaled_pixmap = pixmap.scaled(220, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 image_label.setPixmap(scaled_pixmap)
             image_label.setAlignment(Qt.AlignCenter)
@@ -877,9 +966,9 @@ class DashboardWindow(QWidget):
             title.setStyleSheet("color: #1a1a2e; font-size: 18px; font-weight: bold;")
             title.setAlignment(Qt.AlignCenter)
             
-            vin = QLabel(f"VIN: {vehicle.vin}")
-            vin.setStyleSheet("color: #1a1a2e;")
-            vin.setAlignment(Qt.AlignCenter)
+            License_Plate = QLabel(f"License plate: {vehicle.License_Plate}")
+            License_Plate.setStyleSheet("color: #1a1a2e;")
+            License_Plate.setAlignment(Qt.AlignCenter)
             
             status = QLabel(f"Status: {'Available' if vehicle.is_available else 'Rented'}")
             status.setStyleSheet("color: #7785AC;")
@@ -893,7 +982,7 @@ class DashboardWindow(QWidget):
             # Add widgets to layout
             layout.addWidget(title)
             layout.addWidget(image_container)
-            layout.addWidget(vin)
+            layout.addWidget(License_Plate)
             layout.addWidget(status)
             layout.addWidget(remove_btn)
             
@@ -907,7 +996,7 @@ class DashboardWindow(QWidget):
             if QMessageBox.question(self, "Confirm Removal", 
                 f"Are you sure you want to remove {vehicle.make} {vehicle.model}?",
                 QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
-                self.system.remove_vehicle(vehicle.vin)
+                self.system.remove_vehicle(vehicle.License_Plate)
                 QMessageBox.information(self, "Success", "Vehicle removed successfully!")
                 self.show_car_management()  # Refresh the view
         except Exception as e:
@@ -925,19 +1014,24 @@ class DashboardWindow(QWidget):
         
         # Create input fields
         fields = {}
-        fields['vin'] = QLineEdit()
+        fields['License_Plate'] = QLineEdit()
+        fields['License_Plate'].setPlaceholderText("ABC-123")  
         fields['make'] = QLineEdit()
+        fields['make'].setPlaceholderText("E.g. Toyota")
         fields['model'] = QLineEdit()
-        fields['year'] = QSpinBox()
-        fields['year'].setRange(2000, 2025)
+        fields['model'].setPlaceholderText("E.g. Corolla")
+        fields['year'] = QLineEdit()
+        fields['year'].setPlaceholderText("2000-2025")
         fields['daily_rate'] = QDoubleSpinBox()
         fields['daily_rate'].setRange(1000, 100000)
         fields['seating'] = QSpinBox()
         fields['seating'].setRange(2, 8)
         fields['transmission'] = QLineEdit()
+        fields['transmission'].setPlaceholderText("Automatic or Manual")
         fields['fuel_type'] = QLineEdit()
+        fields['fuel_type'].setPlaceholderText("Petrol or CNG")
         
-        # Add fields to layout
+        # Add fields to layout 
         for key, field in fields.items():
             label = QLabel(key.replace('_', ' ').title() + ':')
             label.setStyleSheet("font-family: 'Montserrat';")
@@ -955,26 +1049,58 @@ class DashboardWindow(QWidget):
         
         def handle_save():
             try:
+                year_text = fields['year'].text().strip()
+                if not year_text:
+                    QMessageBox.warning(dialog, "Error", "A year is required!")
+                    return
+                if not year_text.isdigit():
+                    QMessageBox.warning(dialog, "Error", "Year must be a number!")
+                    return
+                year = int(year_text)
+                if year < 2000 or year > 2025:
+                    QMessageBox.warning(dialog, "Error", "Year must be between 2000 and 2025!")
+                    return
+                
+                License_Plate = fields['License_Plate'].text().strip()
+                make = fields['make'].text().strip()
+                model = fields['model'].text().strip()
+                transmission = fields['transmission'].text().strip()
+                fuel_type = fields['fuel_type'].text().strip()
+                
+                required_fields = [
+                    (License_Plate, 'License_Plate'),
+                    (make, 'Make'),
+                    (model, 'Model'),
+                    (transmission, 'Transmission'),
+                    (fuel_type, 'Fuel Type')
+                ]
+                
+                for value, field_name in required_fields:
+                    if not value:
+                        QMessageBox.warning(dialog, "Error", "Enter all the required fields!")
+                        return
+                
                 car_data = {
-                    'vin': fields['vin'].text(),
-                    'make': fields['make'].text(),
-                    'model': fields['model'].text(),
-                    'year': fields['year'].value(),
+                    'License_Plate': License_Plate,
+                    'make': make,
+                    'model': model,
+                    'year': year,
                     'daily_rate': fields['daily_rate'].value(),
                     'seating': fields['seating'].value(),
-                    'transmission': fields['transmission'].text(),
-                    'fuel_type': fields['fuel_type'].text(),
+                    'transmission': transmission,
+                    'fuel_type': fuel_type,
                     'is_available': True
                 }
                 
-                # Continuing from where it was cut off in show_add_car method:
                 self.system.add_vehicle(car_data)
                 QMessageBox.information(dialog, "Success", "Car added successfully!")
                 dialog.accept()
                 self.show_available_cars()  # Refresh the view
+            except InvalidVehicleYearError as e:
+                QMessageBox.warning(dialog, "Error", str(e))
             except Exception as e:
                 QMessageBox.warning(dialog, "Error", str(e))
-        
+            
         save_btn.clicked.connect(handle_save)
         cancel_btn.clicked.connect(dialog.reject)
         
@@ -1012,14 +1138,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("FAM CAR RENTAL SYSTEM")
         self.setMinimumSize(1200, 700)
         
-        icon_path = "C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/icon.png"
+        icon_path = PROJECT_ROOT / "assets" / "icon.png"
         if Path(icon_path).exists():
-            self.setWindowIcon(QIcon(icon_path))
+            self.setWindowIcon(QIcon(str(icon_path)))
     
         # Load Montserrat font
-        font_id = QFontDatabase.addApplicationFont("C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/fonts/Montserrat-Regular.ttf")
-        font_id_bold = QFontDatabase.addApplicationFont("C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/fonts/Montserrat-Bold.ttf")
-        font_id_medium = QFontDatabase.addApplicationFont("C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/fonts/Montserrat-Medium.ttf")
+        font_id = PROJECT_ROOT / "fonts" / "Montserrat-Regular.ttf"
+        QFontDatabase.addApplicationFont(str(font_id))
+        font_id_bold = PROJECT_ROOT / "fonts" / "Montserrat-Bold.ttf"
+        QFontDatabase.addApplicationFont(str(font_id_bold))
+        
         
         # Initialize the car rental system
         self.system = CarRentalSystem()
@@ -1057,9 +1185,9 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     # Set application icon
-    icon_path = "C:/UNI DATA/CP/OOP CEP/FAM CAR RENTAL/assets/icon.png"
+    icon_path = PROJECT_ROOT / "assets" / "icon.png"
     if Path(icon_path).exists():
-        app.setWindowIcon(QIcon(icon_path))
+        app.setWindowIcon(QIcon(str(icon_path)))
     
     window = MainWindow()
     window.show()

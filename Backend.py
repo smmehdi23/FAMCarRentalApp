@@ -7,17 +7,9 @@ import json
 from decimal import Decimal
 from uuid import uuid4
 
-
-
-
-# ---------------------------
-# Exceptions
-# ---------------------------
 class CarRentalError(Exception):
-    def __init__(self, message: str, code: int = 1000):
-        super().__init__(message)
-        self.code = code
-        self.message = f"[ERR-{self.code}] {message}"
+    def __init__(self, message: str):
+        self.message = f"{message}"
 
     def __str__(self):
         return self.message
@@ -25,7 +17,7 @@ class CarRentalError(Exception):
 
 class AuthenticationError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=2000)
+        super().__init__(message)
 
 
 class InvalidCredentialsError(AuthenticationError):
@@ -35,7 +27,11 @@ class InvalidCredentialsError(AuthenticationError):
 
 class RegistrationError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=3000)
+        super().__init__(message)
+
+class InvalidSecretCodeError(CarRentalError):
+    def __init__(self):
+        super().__init__("Please enter the correct secret code!")
 
 
 class UsernameExistsError(RegistrationError):
@@ -45,7 +41,7 @@ class UsernameExistsError(RegistrationError):
 
 class PaymentError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=4000)
+        super().__init__(message)
 
 
 class InsufficientBalanceError(PaymentError):
@@ -55,42 +51,47 @@ class InsufficientBalanceError(PaymentError):
 
 class InventoryError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=5000)
+        super().__init__(message)
+
+
+class InvalidVehicleYearError(InventoryError):
+    def __init__(self, year: int):
+        super().__init__(f"Year {year} is invalid. Must be between 2000 and 2025.")
 
 
 class DuplicateVehicleError(CarRentalError):
-    def __init__(self, vin: str):
-        super().__init__(f"Vehicle {vin} already exists", code=5001)
+    def __init__(self, License_Plate: str):
+        super().__init__(f"Vehicle {License_Plate} already exists")
 
 
 class VehicleNotFoundError(CarRentalError):
-    def __init__(self, vin: str):
-        super().__init__(f"Vehicle {vin} not found", code=5002)
+    def __init__(self, License_Plate: str):
+        super().__init__(f"Vehicle {License_Plate} not found")
 
 
 class VehicleNotAvailableError(InventoryError):
-    def __init__(self, vin: str):
-        super().__init__(f"Vehicle {vin} is not available")
+    def __init__(self, License_Plate: str):
+        super().__init__(f"Vehicle {License_Plate} is not available")
 
 
 class RentalError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=6000)
+        super().__init__(message)
 
 
 class InvalidUserError(CarRentalError):
     def __init__(self):
-        super().__init__("Invalid user type", code=6001)
+        super().__init__("Invalid user type")
 
 
 class ActiveRentalExistsError(CarRentalError):
     def __init__(self, username: str):
-        super().__init__(f"User {username} has active rental", code=6002)
+        super().__init__(f"User {username} has active rental")
 
 
 class NoActiveRentalError(CarRentalError):
     def __init__(self, username: str):
-        super().__init__(f"No active rental for {username}", code=6003)
+        super().__init__(f"No active rental for {username}")
 
 
 class InvalidRentalDurationError(RentalError):
@@ -100,12 +101,9 @@ class InvalidRentalDurationError(RentalError):
 
 class DatabaseError(CarRentalError):
     def __init__(self, message: str):
-        super().__init__(message, code=7000)
+        super().__init__(message)
 
 
-# ---------------------------
-# User Classes
-# ---------------------------
 @dataclass
 class AbstractUser:
     username: str
@@ -154,32 +152,16 @@ class Customer(AbstractUser):
 
 
 @dataclass
-
 class Admin(AbstractUser):
-    username: str = "admin"
-    password: str = "admin"
-    first_name: str = "System"
-    last_name: str = "Admin"
-    email: str = "admin@carental.com"
-    phone: str = "1234567890"
-    address: str = "System Address"
-    @property
-    def balance(self) -> float:
-        return 1000000
-        
-    def deduct_balance(self, amount: float):
-        raise PermissionError("Admin accounts don't have balances")
-
+    is_administrator: bool = field(default=True, init=False)
+    
     def get_role(self) -> str:
         return "admin"
 
 
-# ---------------------------
-# Vehicle Class
-# ---------------------------
 @dataclass
 class Vehicle:
-    vin: str
+    License_Plate: str
     make: str
     model: str
     year: int
@@ -189,19 +171,11 @@ class Vehicle:
     fuel_type: str
     is_available: bool = True
 
-    def __lt__(self, other: 'Vehicle') -> bool:
-        return self.daily_rate < other.daily_rate
+    def __post_init__(self):
+        if not (2000 <= self.year <= 2025):
+            raise InvalidVehicleYearError(self.year)
 
 
-@dataclass
-class Car(Vehicle):
-    trunk_space: float = 12.5
-    mileage: float = 0.0
-
-
-# ---------------------------
-# Rental Class 
-# ---------------------------
 @dataclass
 class Rental:
     user: Customer
@@ -223,9 +197,6 @@ class Rental:
         return Decimal(str(self.vehicle.daily_rate)) * Decimal(str(self.duration_days))
 
 
-# ---------------------------
-# Database & Core System
-# ---------------------------
 class Database:
     def __init__(self, system: 'CarRentalSystem', data_dir: str = 'data'):
         self.data_dir = Path(data_dir)
@@ -294,6 +265,15 @@ class Database:
     @staticmethod
     def _decode_user(data: Dict) -> AbstractUser:
         user_type = data.pop("type")
+        if user_type == "Admin":
+            return Admin(
+                username=data['username'],
+                password=data['password'],
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                email=data['email'],
+                phone=data['phone'],
+                address=data['address'])
         if user_type == "Customer":
             return Customer(
                 username=data['username'],
@@ -310,8 +290,8 @@ class Database:
     @staticmethod
     def _encode_vehicle(vehicle: Vehicle) -> Dict:
         data = {
-            "type": "Car" if isinstance(vehicle, Car) else "Vehicle",
-            "vin": vehicle.vin,
+            "type": "Vehicle",
+            "License_Plate": vehicle.License_Plate,
             "make": vehicle.make,
             "model": vehicle.model,
             "year": vehicle.year,
@@ -321,31 +301,12 @@ class Database:
             "fuel_type": vehicle.fuel_type,
             "is_available": vehicle.is_available
         }
-        if isinstance(vehicle, Car):
-            data.update({
-                "trunk_space": vehicle.trunk_space,
-                "mileage": float(vehicle.mileage)
-            })
-        return data
 
     @staticmethod
     def _decode_vehicle(data: Dict) -> Vehicle:
-        if data["type"] == "Car":
-            return Car(
-                vin=data['vin'],
-                make=data['make'],
-                model=data['model'],
-                year=data['year'],
-                daily_rate=data['daily_rate'],
-                seating=data['seating'],
-                transmission=data['transmission'],
-                fuel_type=data['fuel_type'],
-                trunk_space=data['trunk_space'],
-                mileage=data['mileage'],
-                is_available=data['is_available']
-            )
+        
         return Vehicle(
-            vin=data['vin'],
+            License_Plate=data['License_Plate'],
             make=data['make'],
             model=data['model'],
             year=data['year'],
@@ -361,7 +322,7 @@ class Database:
         return {
             "id": rental.id,
             "user": rental.user.username,
-            "vehicle": rental.vehicle.vin,
+            "vehicle": rental.vehicle.License_Plate,
             "start_date": rental.start_date,
             "end_date": rental.end_date
         }
@@ -369,7 +330,7 @@ class Database:
     def _decode_rental(self, data: Dict) -> Rental:
         try:
             user = next(u for u in self.system.users if u.username == data['user'] and isinstance(u, Customer))
-            vehicle = next(v for v in self.system.vehicles if v.vin == data['vehicle'])
+            vehicle = next(v for v in self.system.vehicles if v.License_Plate == data['vehicle'])
         except StopIteration:
             raise DatabaseError("Invalid rental reference")
 
@@ -398,8 +359,20 @@ class CarRentalSystem:
     def register_user(self, user_data: dict) -> Customer:
         if any(u.username == user_data['username'] for u in self.users):
             raise UsernameExistsError(user_data['username'])
-        user = Customer(**user_data)
+        
+        # check for secret code
+        secret_code = user_data.pop('secret_code', None)
+        
+        if secret_code:
+            if secret_code != "CCLG2024": 
+                raise InvalidSecretCodeError()
+            user = Admin(**user_data)
+        else:
+            user = Customer(**user_data)
+
+        # save and return the user
         self.users.append(user)
+        self.db.save_all(self.users, self.vehicles, self.rentals)
         return user
 
     def authenticate(self, username: str, password: str) -> AbstractUser:
@@ -408,23 +381,18 @@ class CarRentalSystem:
             raise InvalidCredentialsError()
         return user
 
-    def get_all_customers(self) -> List[Customer]:
-        return [u for u in self.users if isinstance(u, Customer)]
-
     def get_active_rentals(self) -> List[Rental]:
-        return [r for r in self.rentals if r.vehicle.is_available is False]
+        active = [r for r in self.rentals if not r.vehicle.is_available]
+        return active
 
-    def get_reserved_vehicles(self) -> List[Vehicle]:
-        return [v for v in self.vehicles if not v.is_available]
-
-    def rent_vehicle(self, username: str, vin: str, start_date: datetime, end_date: datetime) -> Rental:
+    def rent_vehicle(self, username: str, License_Plate: str, start_date: datetime, end_date: datetime) -> Rental:
         user = next((u for u in self.users if u.username == username), None)
-        vehicle = next((v for v in self.vehicles if v.vin == vin), None)
+        vehicle = next((v for v in self.vehicles if v.License_Plate == License_Plate), None)
 
         if not user or not isinstance(user, Customer):
             raise InvalidUserError()
         if not vehicle or not vehicle.is_available:
-            raise VehicleNotAvailableError(vin)
+            raise VehicleNotAvailableError(License_Plate)
         if user.current_rental:
             raise ActiveRentalExistsError(username)
 
@@ -451,19 +419,19 @@ class CarRentalSystem:
         user.current_rental = None
 
     def add_vehicle(self, vehicle_data: Dict) -> Vehicle:
-        if any(v.vin == vehicle_data['vin'] for v in self.vehicles):
-            raise DuplicateVehicleError(vehicle_data['vin'])
+        if any(v.License_Plate == vehicle_data['License_Plate'] for v in self.vehicles):
+            raise DuplicateVehicleError(vehicle_data['License_Plate'])
 
-        vehicle = Vehicle(**vehicle_data) if vehicle_data.get('type') == 'Vehicle' else Car(**vehicle_data)
+        vehicle = Vehicle(**vehicle_data)
         self.vehicles.append(vehicle)
         return vehicle
 
-    def remove_vehicle(self, vin: str) -> None:
-        vehicle = next((v for v in self.vehicles if v.vin == vin), None)
+    def remove_vehicle(self, License_Plate: str) -> None:
+        vehicle = next((v for v in self.vehicles if v.License_Plate == License_Plate), None)
         if not vehicle:
-            raise VehicleNotFoundError(vin)
+            raise VehicleNotFoundError(License_Plate)
         if not vehicle.is_available:
-            raise VehicleNotAvailableError(vin)
+            raise VehicleNotAvailableError(License_Plate)
         self.vehicles.remove(vehicle)
 
     def get_available_vehicles(self) -> List[Vehicle]:
@@ -475,13 +443,6 @@ class CarRentalSystem:
             raise InvalidUserError()
         return user.rental_history
 
-    def generate_rental_report(self) -> Dict:
-        return {
-            "total_rentals": len(self.rentals),
-            "active_rentals": len(self.get_active_rentals()),
-            "total_revenue": sum(float(r.total_cost) for r in self.rentals)
-        }
-
     def add_funds(self, username: str, amount: float) -> float:
         user = next((u for u in self.users if u.username == username), None)
         if not user or not isinstance(user, Customer):
@@ -491,4 +452,3 @@ class CarRentalSystem:
 
     def shutdown(self):
         self.db.save_all(self.users, self.vehicles, self.rentals)
-
